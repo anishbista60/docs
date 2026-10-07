@@ -119,6 +119,24 @@ spec:
     is no longer supported. If you are upgrading from a previous version, update your
     `VirtualMachineBMC` resources accordingly.
 
+## Selecting a Volume Mode
+
+By default, the DataVolume created on virtual media insert uses `Block`
+volume mode, which has no filesystem overhead and so isn't subject to the
+StorageClass's CDI `filesystemOverhead` setting described below. This
+requires a StorageClass whose provisioner supports raw block volumes. If
+yours doesn't, or you need a filesystem-backed volume for another reason,
+set `spec.redfish.virtualMedia.storage.volumeMode` to `Filesystem` on the
+`VirtualMachineBMC` resource:
+
+```yaml
+spec:
+  redfish:
+    virtualMedia:
+      storage:
+        volumeMode: Filesystem
+```
+
 ## Storage Overhead
 
 If you are using a storage backend with higher filesystem overhead
@@ -150,6 +168,25 @@ Verify it applied:
 ```bash
 kubectl get cdiconfig config -o jsonpath='{.status.filesystemOverhead}'
 ```
+
+### Padding the DataVolume Size
+
+`filesystemOverhead` is a cluster-wide CDI setting, and it has no effect on
+`Block` volumes at all. If you need to pad the size of individual virtual
+media DataVolumes instead, for example, an exact-size image that doesn't
+leave enough room for a `Block` volume's own storage backend rounding, set
+the `bmc.kubevirt.io/datavolume-size-margin` annotation on the
+`VirtualMachineBMC` resource to a percentage:
+
+```yaml
+metadata:
+  annotations:
+    bmc.kubevirt.io/datavolume-size-margin: "30"
+```
+
+This pads the requested DataVolume size by the given percentage (30% in the
+example above). The annotation is absent by default (no padding); an invalid
+(non-integer) value is logged as a warning and also treated as no padding.
 
 ## Inserting Virtual Media
 
