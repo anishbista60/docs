@@ -443,11 +443,51 @@ curl -H "X-Auth-Token: $TOKEN" \
     http://testvm-virtbmc.default.svc.cluster.local/redfish/v1/Systems/1 | jq
 ```
 
+The system resource exposes the VM identity so clients can correlate the BMC with the KubeVirt VirtualMachine:
+
+```bash
+curl -s -H "X-Auth-Token: $TOKEN" \
+    http://testvm-virtbmc.default.svc.cluster.local/redfish/v1/Systems/1 \
+    | jq '{Manufacturer, Model, Name, UUID, SerialNumber, SystemType}'
+```
+
+```json
+{
+  "Manufacturer": "KubeVirt",
+  "Model": "KubeVirt",
+  "Name": "default/testvm",
+  "UUID": "c071bdcc-926e-42d2-8051-e0563e1b9965",
+  "SerialNumber": "941324e3-c772-4626-b319-f03e0e01cbb1",
+  "SystemType": "Virtual"
+}
+```
+
+`Name` carries the VM identity in `<namespace>/<vm-name>` form.
+
+`UUID` and `SerialNumber` mirror the VM's SMBIOS identity — `spec.template.spec.domain.firmware.uuid` and `.serial` — which is what the guest OS reports through `dmidecode -s system-uuid` and `dmidecode -s system-serial-number`. KubeVirt fills both fields when the VM is created unless you set them yourself.
+
+When `firmware.uuid` is empty the BMC falls back to KubeVirt's legacy UUID derived from the VM name (and to the null UUID if the value is not a valid UUID); an empty `firmware.serial` falls back to the VM's Kubernetes UID. The [IPMI FRU](ipmi-guide.md#fru-inventory) reports the same serial.
+
 ### Get Manager Information
 
 ```bash
 curl -H "X-Auth-Token: $TOKEN" \
     http://testvm-virtbmc.default.svc.cluster.local/redfish/v1/Managers/BMC | jq
+```
+
+The manager's `FirmwareVersion` reports the Git commit SHA of the virtbmc build. It is the BMC's own build identity, so it is not mirrored into the FRU, whose Product Info Area describes the managed VM:
+
+```bash
+curl -s -H "X-Auth-Token: $TOKEN" \
+    http://testvm-virtbmc.default.svc.cluster.local/redfish/v1/Managers/BMC \
+    | jq '{Model, FirmwareVersion}'
+```
+
+```json
+{
+  "Model": "KubeVirtBMC",
+  "FirmwareVersion": "c1c0faba97e6cf438ab70af38f9033aae89e17b2"
+}
 ```
 
 ## Next Steps

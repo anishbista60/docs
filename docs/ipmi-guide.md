@@ -140,6 +140,62 @@ Current behavior:
 
 Clients that implement “retry on Node Busy” (notably Ironic) can re-issue the power action until the VM state converges.
 
+## Device and Inventory Information
+
+### BMC Device Info
+
+```bash
+ipmitool -I lanplus -U "$USERNAME" -P "$PASSWORD" -H "$HOSTNAME" mc info
+```
+
+Example output:
+
+```
+Device ID                 : 32
+Device Revision           : 1
+Firmware Revision         : 1.00
+IPMI Version              : 0.2
+Manufacturer ID           : 0
+Manufacturer Name         : Unknown
+Product ID                : 0 (0x0000)
+Product Name              : Unknown (0x00)
+Device Available          : yes
+Provides Device SDRs      : no
+Additional Device Support :
+    SDR Repository Device
+    FRU Inventory Device
+```
+
+`Additional Device Support` advertises the **SDR Repository Device** and **FRU Inventory Device** capabilities.
+
+### FRU Inventory
+
+```bash
+ipmitool -I lanplus -U "$USERNAME" -P "$PASSWORD" -H "$HOSTNAME" fru list
+ipmitool -I lanplus -U "$USERNAME" -P "$PASSWORD" -H "$HOSTNAME" fru print 0
+```
+
+Example output (identical for both commands, as there is a single builtin FRU device):
+
+```
+FRU Device Description : Builtin FRU Device (ID 0)
+ Product Manufacturer  : KubeVirt
+ Product Name          : default/testvm
+ Product Serial        : 941324e3-c772-4626-b319-f03e0e01cbb1
+```
+
+| Field | Value |
+|-------|-------|
+| Product Manufacturer | `KubeVirt` |
+| Product Name | VM identity in `<namespace>/<vm-name>` form |
+| Product Serial | The VM's SMBIOS serial number (`spec.template.spec.domain.firmware.serial`), or the VM's Kubernetes UID when it is empty |
+
+The builtin FRU device is the one the BMC sits on, so its Product Info Area describes the managed system — the virtual machine — rather than the BMC itself. `Product Version` is therefore left empty (the virtbmc build is reported as the [Redfish Manager](redfish-guide.md#get-manager-information) `FirmwareVersion`), and `ipmitool` omits empty FRU fields, which is why that line is absent above. KubeVirt fills `spec.template.spec.domain.firmware` when the VM is created; set those fields yourself to control the identity the BMC reports.
+
+!!! note "FRU field length limit"
+
+    A FRU field holds at most 63 bytes per the IPMI specification. A long `<namespace>/<vm-name>` is truncated at 63 bytes in `Product Name`; the serial is normally a 36-character UUID and fits as-is.
+
 ## Boot Device Configuration
 
 ### Set Boot to PXE
